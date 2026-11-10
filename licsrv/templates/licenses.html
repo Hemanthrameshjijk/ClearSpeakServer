@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block body %}
+{% if msg %}<p class="ok">{{ msg }}</p>{% endif %}
+<div class="card"><h3>Licenses</h3>
+<p>Show: <a href="/licenses">all</a> &middot; <a href="/licenses?status=active">active</a> &middot; <a href="/licenses?status=replaced">replaced</a> &middot; <a href="/licenses?status=revoked">revoked</a></p>
+<table><tr><th>User</th><th>Device Code</th><th>Features</th><th>Expires</th><th>Status</th><th></th></tr>
+{% for l in licenses %}<tr><td>{{ names.get(l.user_id, "?") }}</td><td><code>{{ l.device_code }}</code></td><td>{{ l.features | join(", ") }}</td>
+<td>{{ l.expires_at.strftime("%Y-%m-%d") }}</td><td>{{ l.status }}{% if l.revoked_reason %} <span class="muted">({{ l.revoked_reason }})</span>{% endif %}</td>
+<td>{% if l.status == "active" %}<a href="/licenses/{{ l.id }}/file">Download</a>
+<form class="inline" method="post" action="/licenses/{{ l.id }}/renew"><input type="hidden" name="csrf" value="{{ csrf }}"><input name="days" type="number" value="90" min="1" max="400" style="width:70px"> <button class="alt">Renew</button></form>
+<form class="inline" method="post" action="/licenses/{{ l.id }}/revoke" onsubmit="return confirm('Revoke this license?')"><input type="hidden" name="csrf" value="{{ csrf }}"><input name="reason" placeholder="reason" style="width:110px"> <button class="bad">Revoke</button></form>{% endif %}</td></tr>{% endfor %}
+</table></div>{% endblock %}

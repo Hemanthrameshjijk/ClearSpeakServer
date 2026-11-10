@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block body %}
+<div class="card"><h2>License issued for {{ user.name }}</h2>
+<p>Valid until <b>{{ lic.expires_at.strftime("%Y-%m-%d") }}</b> &middot; features: {{ lic.features | join(", ") }} &middot; only for the PC with Device Code <code>{{ lic.device_code }}</code>.</p>
+<p>Send the text below to the user (or the file). They paste it, or import the file, on ClearNAI's Profile page.</p>
+<textarea readonly onclick="this.select()">{{ lic.token }}</textarea>
+<p><a href="/licenses/{{ lic.id }}/file">Download as .lic file</a> &middot; <a href="/licenses">Back to licenses</a></p></div>{% endblock %}

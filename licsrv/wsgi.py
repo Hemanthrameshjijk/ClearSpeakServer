@@ -7,4 +7,5 @@ from .main import create_app
 if not settings.key_passphrase:
     raise RuntimeError("LICSRV_KEY_PASSPHRASE is not set")
 
-app = create_app(load_encrypted_key(settings.signing_key_file, settings.key_passphrase), create_tables=True)
+# Tables come from `alembic upgrade head` (run before start; the Dockerfile does it), not from create_all.
+app = create_app(load_encrypted_key(settings.signing_key_file, settings.key_passphrase), create_tables=False)

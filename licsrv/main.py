@@ -271,6 +271,9 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
         return [{"id": r.id, "ts": r.ts.isoformat(), "admin_id": r.admin_id, "action": r.action, "target_type": r.target_type,
                  "target_id": r.target_id, "detail": r.detail, "ip": r.ip} for r in rows]
 
+    from .web import register
+
+    register(app, _issue, _supersede)
     return app
 
 

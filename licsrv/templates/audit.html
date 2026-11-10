@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block body %}<div class="card"><h3>Audit log (latest 300)</h3><table><tr><th>Time (UTC)</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr>
+{% for r in rows %}<tr><td>{{ r.ts.strftime("%Y-%m-%d %H:%M:%S") }}</td><td>{{ r.action }}</td><td>{{ r.target_type }} {{ r.target_id[:8] }}</td><td class="muted">{{ r.detail }}</td><td>{{ r.ip }}</td></tr>{% endfor %}</table></div>{% endblock %}
