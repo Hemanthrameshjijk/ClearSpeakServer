@@ -42,6 +42,13 @@ def check_totp(secret: str, code: str) -> bool:
     return bool(code) and pyotp.TOTP(secret).verify(code.strip(), valid_window=1)
 
 
+def credentials_ok(admin: AdminUser, password: str, totp: str) -> bool:
+    """Password always; the authenticator code only for people who turned 2FA on."""
+    if not check_password(admin.password_hash, password):
+        return False
+    return check_totp(admin.totp_secret, totp) if admin.totp_enabled else True
+
+
 def _serializer() -> URLSafeTimedSerializer:
     if len(settings.session_secret) < 32:
         raise RuntimeError("LICSRV_SESSION_SECRET must be set to a random value of at least 32 characters")
@@ -86,6 +93,8 @@ def current_admin(request: Request, db: Session = Depends(get_db)) -> AdminUser:
     admin = db.get(AdminUser, data["a"])
     if not admin or not admin.active:
         raise HTTPException(401, "Sign in first.")
+    if admin.must_change_password:
+        raise HTTPException(403, "Change your password first (sign in on the website).")
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         sent = request.headers.get("x-csrf-token", "")
         if not hmac.compare_digest(sent, data["c"]):

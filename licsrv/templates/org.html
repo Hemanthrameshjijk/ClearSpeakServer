@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}{{ org.name }} - ClearNAI{% endblock %}{% block body %}
+<p><a href="/orgs">&larr; Organisations</a></p>
+{% if msg %}<div class="note ok">{{ msg }}</div>{% endif %}{% if error %}<div class="note bad">{{ error }}</div>{% endif %}
+<div class="grid"><div class="stat"><b>{{ o_st.used }} / {{ o_st.seats }}</b><span>seats in use</span></div>
+<div class="stat"><b>{{ o_st.paid_until | day }}</b><span>valid until</span></div>
+<div class="stat"><b>{{ o_st.price_paise | rupees }}</b><span>per seat per month</span></div>
+<div class="stat"><b>{{ "Active" if org.status == "active" else "Off" }}</b><span>organisation</span></div></div>
+<div class="card"><h3>Plan</h3><form method="post" action="/orgs/{{ org.id }}/entitlements"><input type="hidden" name="csrf" value="{{ csrf }}"><div class="row">
+<div><label>Seats</label><input name="seats" type="number" min="0" value="{{ org.seats }}" style="width:100px"></div>
+<div><label>Valid for (days from today; empty = keep)</label><input name="days_from_now" type="number" min="0" style="width:170px"></div>
+<div><label>Price per seat per month, rupees (empty = default)</label><input name="price_rupees" value="{{ '%.2f' % (org.seat_price_paise / 100) if org.seat_price_paise else '' }}" style="width:150px"></div>
+<div><label>Features</label>{% for f in features %}<label style="display:inline-block;margin-right:12px;color:inherit"><input type="checkbox" name="features" value="{{ f }}" {{ "checked" if f in org.features }}> {{ f }}</label>{% endfor %}</div>
+<button>Save</button></div></form>
+<form method="post" action="/orgs/{{ org.id }}/status" style="margin-top:14px" onsubmit="return confirm('Change whether this organisation can sign in and get licenses?')"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% if org.status == "active" %}<input type="hidden" name="status" value="suspended"><button class="bad">Switch organisation off</button>{% else %}<input type="hidden" name="status" value="active"><button>Switch organisation on</button>{% endif %}</form></div>
+<div class="card"><h3>People who can sign in</h3><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr>
+{% for a in team %}<tr><td>{{ a.name }}</td><td>{{ a.email }}</td><td>{{ a.role }}</td><td>{{ "active" if a.active else "off" }}{{ " (temporary password)" if a.must_change_password }}</td>
+<td><form class="inline" method="post" action="/team/{{ a.id }}/reset" onsubmit="return confirm('Make a new temporary password?')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="alt">Reset password</button></form></td></tr>{% endfor %}</table>
+<p><a href="/team?org_id={{ org.id }}">Add an admin</a></p></div>
+<div class="card"><h3>Payments</h3>{% if pays %}<table><tr><th>Date</th><th>For</th><th>Amount</th><th>Status</th></tr>
+{% for p in pays %}<tr><td>{{ p.created_at | day }}</td><td>{{ "Renew: " ~ p.seats ~ " seats, " ~ p.months ~ " months" if p.kind == "renew" else "Add " ~ p.seats ~ " seats" }}</td><td>{{ p.amount_paise | rupees }}</td><td>{{ p.status }}</td></tr>{% endfor %}</table>
+{% else %}<p class="muted">No payments yet.</p>{% endif %}</div>{% endblock %}

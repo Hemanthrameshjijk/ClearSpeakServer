@@ -11,11 +11,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import security, tokens
+from . import billing, security, service, tokens
 from .config import settings
 from .db import Base, engine, get_db
 from .keys import KeyProvider
-from .models import AdminUser, AuditLog, License, Org, User, new_id
+from .models import AdminUser, AuditLog, License, Org, Payment, User, new_id
 
 
 class LoginIn(BaseModel):
@@ -26,6 +26,35 @@ class LoginIn(BaseModel):
 
 class OrgIn(BaseModel):
     name: str = Field(min_length=2, max_length=200)
+    owner_name: str = ""
+    owner_email: str = ""
+    seats: int = 0
+    days: int = 0
+    features: list[str] = Field(default_factory=lambda: list(tokens.FEATURES))
+
+
+class EntitlementsIn(BaseModel):
+    seats: int
+    days_from_now: int | None = None
+    features: list[str]
+    seat_price_paise: int | None = None
+
+
+class AdminIn(BaseModel):
+    name: str
+    email: str
+
+
+class OrderIn(BaseModel):
+    kind: str = "renew"  # renew | add_seats
+    seats: int
+    months: int = 1
+
+
+class VerifyIn(BaseModel):
+    order_id: str
+    payment_id: str
+    signature: str
 
 
 class UserIn(BaseModel):
@@ -55,7 +84,7 @@ class RevokeIn(BaseModel):
 
 
 def audit(db: Session, request: Request, admin: AdminUser | None, action: str, target_type: str = "", target_id: str = "", **detail) -> None:
-    db.add(AuditLog(admin_id=admin.id if admin else None, action=action, target_type=target_type, target_id=target_id, detail=detail,
+    db.add(AuditLog(admin_id=admin.id if admin else None, org_id=admin.org_id if admin else None, action=action, target_type=target_type, target_id=target_id, detail=detail,
                     ip=request.client.host if request.client else ""))
     db.commit()
 
@@ -71,13 +100,23 @@ def _license_out(lic: License, with_token: bool = False) -> dict:
     return out
 
 
-def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
+def create_app(keys: KeyProvider, create_tables: bool = False, gateway=None) -> FastAPI:
     app = FastAPI(title="ClearNAI license server", docs_url=None, redoc_url=None)
     app.state.keys = keys
+    app.state.gateway = gateway
     if create_tables:
         Base.metadata.create_all(engine)
 
-    def _issue(db: Session, request: Request, admin: AdminUser, user: User, device_code: str, features: list[str], days: int) -> License:
+    def get_gateway():
+        if app.state.gateway is None:
+            try:
+                app.state.gateway = billing.make_gateway()
+            except billing.GatewayError as e:
+                raise HTTPException(503, str(e)) from None
+        return app.state.gateway
+
+    def _issue(db: Session, request: Request, admin: AdminUser, user: User, device_code: str, features: list[str], days: int,
+               replacing: License | None = None) -> License:
         if not (settings.min_days <= days <= settings.max_days):
             raise HTTPException(422, f"days must be between {settings.min_days} and {settings.max_days}.")
         feats = sorted(set(features))
@@ -85,6 +124,7 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
             raise HTTPException(422, f"features must be a non-empty subset of {list(tokens.FEATURES)}.")
         if not user.active:
             raise HTTPException(409, "That user is switched off.")
+        days = service.check_can_issue(db, db.get(Org, user.org_id), feats, days, replacing)
         try:
             devs = tokens.parse_device_code(device_code)
         except tokens.DeviceCodeError as e:
@@ -121,7 +161,7 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
         if security.is_locked(admin):
             audit(db, request, admin, "login_locked")
             raise HTTPException(429, "Too many wrong attempts. Try again later.")
-        if not (security.check_password(admin.password_hash, body.password) and security.check_totp(admin.totp_secret, body.totp)):
+        if not security.credentials_ok(admin, body.password, body.totp):
             security.register_failure(db, admin)
             audit(db, request, admin, "login_failed")
             raise generic
@@ -131,7 +171,8 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
         response.set_cookie(security.COOKIE, cookie, httponly=True, samesite="strict", secure=settings.cookie_secure,
                             max_age=settings.session_hours * 3600)
         audit(db, request, admin, "login")
-        return {"csrf": csrf, "email": admin.email, "org_id": admin.org_id}
+        return {"csrf": csrf, "email": admin.email, "org_id": admin.org_id, "role": admin.role if admin.org_id else "super",
+                "must_change_password": admin.must_change_password}
 
     @app.post("/v1/auth/logout")
     def logout(response: Response, admin: AdminUser = Depends(security.current_admin)):
@@ -143,13 +184,76 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
     def create_org(body: OrgIn, request: Request, admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
         if admin.org_id is not None:
             raise HTTPException(403, "Only a super admin can create organisations.")
+        if body.owner_email:
+            org, owner, temp = service.create_org_with_owner(db, body.name, body.owner_name, body.owner_email, body.seats, body.days, body.features)
+            audit(db, request, admin, "org_create", "org", org.id, owner=owner.email, seats=body.seats, days=body.days)
+            return {"id": org.id, "name": org.name, "owner_id": owner.id, "owner_email": owner.email, "temporary_password": temp}
         if db.scalar(select(Org).where(Org.name == body.name.strip())):
             raise HTTPException(409, "An organisation with that name exists.")
-        org = Org(name=body.name.strip())
+        org = Org(name=body.name.strip(), features=list(tokens.FEATURES))
         db.add(org)
         db.commit()
         audit(db, request, admin, "org_create", "org", org.id)
         return {"id": org.id, "name": org.name}
+
+    def _org_out(db: Session, o: Org) -> dict:
+        st = service.org_state(db, o)
+        return {"id": o.id, "name": o.name, "status": o.status, "seats": st["seats"], "seats_used": st["used"],
+                "paid_until": st["paid_until"].isoformat() if st["paid_until"] else None, "features": o.features, "valid": st["valid"]}
+
+    @app.put("/v1/orgs/{org_id}/entitlements")
+    def set_entitlements(org_id: str, body: EntitlementsIn, request: Request, admin: AdminUser = Depends(security.current_admin),
+                         db: Session = Depends(get_db)):
+        if admin.org_id is not None:
+            raise HTTPException(403, "Only a super admin can set what an organisation has.")
+        org = db.get(Org, org_id)
+        if not org:
+            raise HTTPException(404, "No such organisation.")
+        service.set_entitlements(org, body.seats, body.days_from_now, body.features, body.seat_price_paise)
+        db.commit()
+        audit(db, request, admin, "org_entitlements", "org", org.id, seats=body.seats, days=body.days_from_now, features=org.features)
+        return _org_out(db, org)
+
+    @app.post("/v1/orgs/{org_id}/admins", status_code=201)
+    def add_admin(org_id: str, body: AdminIn, request: Request, admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
+        org = db.get(Org, org_id)
+        if not org:
+            raise HTTPException(404, "No such organisation.")
+        security.scope_org(admin, org_id)
+        service.require_owner(admin)
+        a, temp = service.create_org_admin(db, org, body.name, body.email)
+        audit(db, request, admin, "admin_create", "admin", a.id, email=a.email)
+        return {"id": a.id, "email": a.email, "temporary_password": temp}
+
+    @app.get("/v1/me")
+    def me(admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
+        out = {"email": admin.email, "name": admin.name, "role": admin.role if admin.org_id else "super", "totp_enabled": admin.totp_enabled}
+        if admin.org_id:
+            out["org"] = _org_out(db, db.get(Org, admin.org_id))
+        return out
+
+    # ---- billing ------------------------------------------------------------------------------------------
+    @app.post("/v1/billing/orders", status_code=201)
+    def create_order(body: OrderIn, request: Request, admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
+        if admin.org_id is None:
+            raise HTTPException(403, "Sign in as an organisation owner to buy.")
+        service.require_owner(admin)
+        org = db.get(Org, admin.org_id)
+        p = billing.start(db, get_gateway(), org, admin, body.kind, body.seats, body.months)
+        audit(db, request, admin, "payment_start", "payment", p.id, amount=p.amount_paise, kind=p.kind)
+        return {"payment_id": p.id, "order_id": p.provider_order_id, "amount_paise": p.amount_paise, "currency": p.currency, "provider": p.provider}
+
+    @app.post("/v1/billing/verify")
+    def verify_payment(body: VerifyIn, request: Request, admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
+        p = billing.confirm_from_browser(db, get_gateway(), body.order_id, body.payment_id, body.signature, admin.org_id)
+        audit(db, request, admin, "payment_paid", "payment", p.id)
+        return {"status": p.status, "org": _org_out(db, db.get(Org, p.org_id))}
+
+    @app.post("/v1/webhooks/razorpay")
+    async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
+        note = billing.confirm_from_webhook(db, get_gateway(), await request.body(), request.headers.get("x-razorpay-signature", ""))
+        audit(db, request, None, "payment_webhook", note=note)
+        return {"ok": True, "note": note}
 
     @app.get("/v1/orgs")
     def list_orgs(admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
@@ -235,7 +339,7 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
         if old.status != "active":
             raise HTTPException(409, f"That license is {old.status}.")
         user = db.get(User, old.user_id)
-        new = _issue(db, request, admin, user, device_code, old.features, days)
+        new = _issue(db, request, admin, user, device_code, old.features, days, replacing=old)
         old.status, old.replaced_by = "replaced", new.id
         db.commit()
         audit(db, request, admin, action, "license", new.id, replaces=old.id, days=days)
@@ -273,7 +377,7 @@ def create_app(keys: KeyProvider, create_tables: bool = False) -> FastAPI:
 
     from .web import register
 
-    register(app, _issue, _supersede)
+    register(app, _issue, _supersede, get_gateway)
     return app
 
 

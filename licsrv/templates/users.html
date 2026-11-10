@@ -1,11 +1,12 @@
-{% extends "base.html" %}{% block body %}
-{% if msg %}<p class="ok">{{ msg }}</p>{% endif %}
-<div class="card"><h3>Add a user</h3><form method="post" action="/users" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% extends "base.html" %}{% block title %}People - ClearNAI{% endblock %}{% block body %}
+{% if msg %}<div class="note ok">{{ msg }}</div>{% endif %}
+<div class="card"><h3>Add a person</h3><p class="muted" style="margin-top:0">People who will use ClearNAI on their PC. They do not sign in to this website.</p>
+<form method="post" action="/users" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
 {% if is_super %}<div><label>Organisation</label><select name="org_id">{% for o in orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></div>{% endif %}
 <div><label>Name</label><input name="name" required></div><div><label>Email</label><input name="email" type="email"></div>
 <div><label>Employee ID</label><input name="employee_id"></div><button>Add</button></form></div>
-<div class="card"><h3>Users</h3><table><tr><th>Name</th><th>Email</th><th>Employee ID</th><th>Status</th><th></th></tr>
+<div class="card"><h3>People</h3><table><tr><th>Name</th><th>Email</th><th>Employee ID</th><th>Status</th><th></th></tr>
 {% for u in users %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ u.employee_id }}</td><td>{{ "active" if u.active else "off" }}</td>
 <td>{% if u.active %}<a href="/licenses/new?user_id={{ u.id }}">Issue license</a>
-<form class="inline" method="post" action="/users/{{ u.id }}/deactivate" onsubmit="return confirm('Switch this user off and revoke their licenses?')">
+<form class="inline" method="post" action="/users/{{ u.id }}/deactivate" onsubmit="return confirm('Switch this person off and revoke their licenses?')">
 <input type="hidden" name="csrf" value="{{ csrf }}"> <button class="alt">Switch off</button></form>{% endif %}</td></tr>{% endfor %}</table></div>{% endblock %}

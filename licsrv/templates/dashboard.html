@@ -1,8 +1,20 @@
-{% extends "base.html" %}{% block body %}
-<div class="card"><h2>Overview</h2><p><b>{{ active }}</b> active licenses &middot; <b>{{ users }}</b> active users</p></div>
-<div class="card"><h3>Expiring in the next 30 days</h3>
+{% extends "base.html" %}{% block title %}Dashboard - ClearNAI{% endblock %}{% block body %}
+{% if msg %}<div class="note ok">{{ msg }}</div>{% endif %}
+{% if platform %}
+<div class="grid"><div class="stat"><b>{{ platform.orgs }}</b><span>organisations</span></div><div class="stat"><b>{{ platform.paid_orgs }}</b><span>with a valid subscription</span></div>
+<div class="stat"><b>{{ active }}</b><span>active licenses</span></div><div class="stat"><b>{{ platform.revenue | rupees }}</b><span>received so far</span></div></div>
+<p><a class="btn" href="/orgs">Create or manage organisations</a></p>
+{% else %}
+<div class="grid">
+ <div class="stat"><b>{{ st.used }} / {{ st.seats }}</b><span>seats in use</span><div class="bar" style="margin-top:8px"><i style="width:{{ (100 * st.used / st.seats) if st.seats else 0 }}%"></i></div></div>
+ <div class="stat"><b>{{ active }}</b><span>active licenses</span></div><div class="stat"><b>{{ users }}</b><span>active people</span></div>
+ <div class="stat"><b>{{ st.paid_until | day }}</b><span>{{ "subscription valid until" if st.valid else "subscription ended" }}</span></div></div>
+{% if st.used == 0 and users == 0 %}<div class="card"><h3>Get started</h3><ol><li>Add the people who will use ClearNAI on <a href="/users">People</a>.</li>
+<li>Ask each person to open ClearNAI &gt; Profile and copy their <b>Device Code</b>.</li><li>Choose <a href="/licenses/new">Issue license</a>, paste the code, and send them the result.</li></ol></div>{% endif %}
+{% endif %}
+<div class="card"><h3>Licenses expiring in the next 30 days</h3>
 {% if soon %}<table><tr><th>User</th><th>Expires</th><th></th></tr>
-{% for l in soon %}<tr><td>{{ names.get(l.user_id, "?") }}</td><td>{{ l.expires_at.strftime("%Y-%m-%d") }}</td>
+{% for l in soon %}<tr><td>{{ names.get(l.user_id, "?") }}</td><td>{{ l.expires_at | day }}</td>
 <td><form class="inline" method="post" action="/licenses/{{ l.id }}/renew"><input type="hidden" name="csrf" value="{{ csrf }}">
 <input name="days" type="number" value="90" min="1" max="400" style="width:80px"> <button>Renew</button></form></td></tr>{% endfor %}</table>
 {% else %}<p class="muted">Nothing is about to expire.</p>{% endif %}</div>{% endblock %}

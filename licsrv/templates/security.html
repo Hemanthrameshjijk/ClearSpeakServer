@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Security - ClearNAI{% endblock %}
+{% block body %}<div class="card" style="max-width:560px"><h2>Account</h2>
+<p>{{ admin.name or "" }} <span class="muted">{{ admin.email }}</span> &middot; {{ "ClearNAI staff" if is_super else ("Owner" if is_owner else "Admin") }}</p>
+<p><a href="/password">Change password</a></p></div>
+<div class="card" style="max-width:560px"><h3>Two-step sign-in</h3>
+{% if msg %}<p class="ok">{{ msg }}</p>{% endif %}{% if error %}<p class="bad">{{ error }}</p>{% endif %}
+{% if admin.totp_enabled %}<p><span class="tag ok">On</span> You enter a 6-digit code from your authenticator app each time you sign in.</p>
+{% if not is_super %}<form method="post" action="/security/2fa/disable" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div><label>Password</label><input name="password" type="password" required></div><button class="alt">Turn off</button></form>{% endif %}
+{% else %}<p><span class="tag">Off</span> Recommended for owners and admins. Scan this with an authenticator app (Microsoft Authenticator, Google Authenticator, Authy), then type the code it shows.</p>
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center"><div style="background:#fff;padding:6px;border-radius:10px;line-height:0">{{ qr | safe }}</div>
+<div><p class="muted" style="margin:0 0 4px">Or type this key into the app:</p><code>{{ admin.totp_secret }}</code></div></div>
+<form method="post" action="/security/2fa/enable" class="row" style="margin-top:14px"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div><label>Code from the app</label><input name="code" inputmode="numeric" required placeholder="6 digits"></div><button>Turn on</button></form>{% endif %}</div>{% endblock %}

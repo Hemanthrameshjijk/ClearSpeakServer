@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Receipt - ClearNAI{% endblock %}{% block body %}
+<div class="card" style="max-width:560px"><h2>Payment receipt</h2><p class="muted">ClearNAI &middot; {{ org.name }}</p>
+<table><tr><th>Date</th><td>{{ p.paid_at | day }}</td></tr><tr><th>For</th><td>{{ "Renew: " ~ p.seats ~ " seats for " ~ p.months ~ " months" if p.kind == "renew" else "Add " ~ p.seats ~ " seats" }}</td></tr>
+<tr><th>Amount</th><td><b>{{ p.amount_paise | rupees }}</b></td></tr><tr><th>Order</th><td><code>{{ p.provider_order_id }}</code></td></tr><tr><th>Payment</th><td><code>{{ p.provider_payment_id }}</code></td></tr></table>
+<p class="muted">This is a payment confirmation, not a tax invoice.</p><p><button onclick="window.print()">Print</button> <a class="btn alt" href="/billing">Back</a></p></div>{% endblock %}

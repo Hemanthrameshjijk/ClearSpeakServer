@@ -101,7 +101,8 @@ def test_org_admins_cannot_reach_other_orgs_or_the_audit_page(world):
     assert r.status_code == 303 and "another+organisation" in r.headers["location"].replace("%20", "+")
     assert "Only A" not in b.get("/users").text
     assert "CLNAI1" not in b.get("/licenses").text, "nothing was issued"
-    assert b.get("/audit").status_code == 403
+    audit_b = b.get("/audit")
+    assert audit_b.status_code == 200 and "Only A" not in audit_b.text and "user_create" not in audit_b.text, "an owner sees only their own organisation's log"
     assert web_login(world).get("/audit").status_code == 200
 
 
@@ -120,12 +121,13 @@ def test_super_admin_manages_organisations_from_the_page(world):
     page = c.get("/orgs").text
     assert "Org A" in page and "Org B" in page
     csrf = csrf_of(c, "/orgs")
-    assert c.post("/orgs", data={"csrf": csrf, "name": "New Org <x>"}).status_code == 303
-    after = c.get("/orgs").text
-    assert "New Org &lt;x&gt;" in after
-    r = c.post("/orgs", data={"csrf": csrf, "name": "New Org <x>"})
-    assert "already" in r.headers["location"].replace("+", " ") or "exists" in r.headers["location"]
-    assert c.post("/orgs", data={"csrf": "wrong", "name": "Zed Org"}).status_code == 403
+    form = {"csrf": csrf, "name": "New Org <x>", "owner_name": "Olive Owner", "owner_email": "olive@new.example", "seats": "3", "days": "14"}
+    r = c.post("/orgs", data=form)
+    assert r.status_code == 200 and "Temporary password" in r.text
+    assert "New Org &lt;x&gt;" in c.get("/orgs").text
+    r = c.post("/orgs", data={**form, "owner_email": "other@new.example"})
+    assert r.status_code == 303 and "exists" in r.headers["location"]
+    assert c.post("/orgs", data={**form, "csrf": "wrong"}).status_code == 403
     admin_a = web_login(world, "a")
     assert admin_a.get("/orgs").status_code == 403
-    assert admin_a.post("/orgs", data={"csrf": csrf_of(admin_a), "name": "Sneaky"}).status_code == 403
+    assert admin_a.post("/orgs", data={**form, "csrf": csrf_of(admin_a)}).status_code == 403

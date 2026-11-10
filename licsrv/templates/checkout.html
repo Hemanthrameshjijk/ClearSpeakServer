@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Pay - ClearNAI{% endblock %}{% block body %}
+<div class="card" style="max-width:520px"><h2>Confirm and pay</h2>
+<table><tr><th>For</th><td>{{ "Renew: " ~ p.seats ~ " seats for " ~ p.months ~ " months" if p.kind == "renew" else "Add " ~ p.seats ~ " seats until the current end date" }}</td></tr>
+<tr><th>Amount</th><td><b style="font-size:20px">{{ p.amount_paise | rupees }}</b></td></tr><tr><th>Reference</th><td><code>{{ p.provider_order_id }}</code></td></tr></table>
+<form id="done" method="post" action="/billing/verify"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="order_id" value="{{ p.provider_order_id }}">
+{% if provider == "mock" %}
+<div class="note warn" style="margin-top:14px">Test mode. No money moves.</div>
+<input type="hidden" name="payment_id" value="{{ mock_payment_id }}"><input type="hidden" name="signature" value="{{ mock_signature }}">
+<button>Pay {{ p.amount_paise | rupees }} (test)</button> <a class="btn alt" href="/billing">Cancel</a>
+{% else %}
+<input type="hidden" name="payment_id" id="pid"><input type="hidden" name="signature" id="sig">
+<p style="margin-top:14px"><button type="button" id="pay">Pay {{ p.amount_paise | rupees }}</button> <a class="btn alt" href="/billing">Cancel</a></p>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>document.getElementById('pay').onclick=function(){var r=new Razorpay({key:"{{ key_id }}",amount:{{ p.amount_paise }},currency:"{{ p.currency }}",order_id:"{{ p.provider_order_id }}",
+ name:"ClearNAI",description:"{{ 'Renew' if p.kind == 'renew' else 'Add seats' }}",prefill:{email:"{{ admin.email }}",name:"{{ admin.name }}"},theme:{color:"#3a5bd9"},
+ handler:function(x){document.getElementById('pid').value=x.razorpay_payment_id;document.getElementById('sig').value=x.razorpay_signature;document.getElementById('done').submit();}});r.open();};</script>
+{% endif %}</form></div>{% endblock %}

@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     min_days: int = 1
     max_days: int = 400
+    public_url: str = "http://127.0.0.1:8000"
+    # Payments. "mock" = a fake checkout for local testing (never use in production); "razorpay" = real payments.
+    payment_provider: str = "mock"
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+    currency: str = "INR"
+    seat_price_paise: int = 29900  # price of one seat for one month, in paise (INR 299.00). Placeholder: set your real price.
+    max_seats: int = 5000
+    max_months: int = 24
 
 
 settings = Settings()

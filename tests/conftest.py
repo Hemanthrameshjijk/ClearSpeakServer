@@ -5,6 +5,8 @@ os.environ["LICSRV_DATABASE_URL"] = "sqlite://"
 os.environ["LICSRV_SESSION_SECRET"] = "x" * 48
 os.environ["LICSRV_COOKIE_SECURE"] = "false"
 
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
 import pyotp  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -29,12 +31,13 @@ def world(provider):
     Base.metadata.create_all(engine)
     out = {}
     with SessionLocal() as db:
-        a, b = Org(name="Org A"), Org(name="Org B")
+        far = datetime.now(timezone.utc) + timedelta(days=400)
+        a, b = (Org(name=n, seats=50, paid_until=far, features=["accent", "bvc", "nc"]) for n in ("Org A", "Org B"))
         db.add_all([a, b])
         db.flush()
         for key, org in (("super", None), ("a", a.id), ("b", b.id)):
             secret = security.new_totp_secret()
-            admin = AdminUser(email=f"{key}@example.com", org_id=org, password_hash=security.hash_password(PASSWORD), totp_secret=secret)
+            admin = AdminUser(email=f"{key}@example.com", org_id=org, role="owner" if org else "admin", totp_enabled=True, password_hash=security.hash_password(PASSWORD), totp_secret=secret)
             db.add(admin)
             out[key] = {"email": admin.email, "secret": secret}
         db.commit()

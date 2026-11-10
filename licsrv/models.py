@@ -22,6 +22,11 @@ class Org(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | suspended
+    seats: Mapped[int] = mapped_column(Integer, default=0)  # how many licenses may be active at once
+    paid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    features: Mapped[list] = mapped_column(JSON, default=list)  # what this organisation may put in a license
+    seat_price_paise: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = the server default
 
 
 class AdminUser(Base):
@@ -33,6 +38,10 @@ class AdminUser(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True)
     password_hash: Mapped[str] = mapped_column(String(300))
     totp_secret: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(200), default="")
+    role: Mapped[str] = mapped_column(String(10), default="admin")  # org users: owner | admin (org_id None = super admin)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_logins: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -76,8 +85,29 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     admin_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    org_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     action: Mapped[str] = mapped_column(String(60))
     target_type: Mapped[str] = mapped_column(String(40), default="")
     target_id: Mapped[str] = mapped_column(String(64), default="")
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
     ip: Mapped[str] = mapped_column(String(64), default="")
+
+
+class Payment(Base):
+    """One purchase. `kind` renew = set the seat count and extend the validity; add_seats = extra seats until the current end date."""
+
+    __tablename__ = "payments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    org_id: Mapped[str] = mapped_column(ForeignKey("orgs.id"))
+    kind: Mapped[str] = mapped_column(String(12))
+    seats: Mapped[int] = mapped_column(Integer)
+    months: Mapped[int] = mapped_column(Integer, default=0)
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="INR")
+    provider: Mapped[str] = mapped_column(String(20))
+    provider_order_id: Mapped[str] = mapped_column(String(100), unique=True)
+    provider_payment_id: Mapped[str] = mapped_column(String(100), default="")
+    status: Mapped[str] = mapped_column(String(12), default="created")  # created | paid | failed
+    created_by: Mapped[str] = mapped_column(ForeignKey("admin_users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

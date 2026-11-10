@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Billing - ClearNAI{% endblock %}{% block body %}
+{% if msg %}<div class="note ok">{{ msg }}</div>{% endif %}{% if error %}<div class="note bad">{{ error }}</div>{% endif %}
+{% if mock %}<div class="note warn">Test mode: payments here are simulated and no money moves.</div>{% endif %}
+<div class="grid"><div class="stat"><b>{{ st.used }} / {{ st.seats }}</b><span>seats in use</span></div><div class="stat"><b>{{ st.paid_until | day }}</b><span>{{ "valid until" if st.valid else "ended on" }}</span></div>
+<div class="stat"><b>{{ st.price_paise | rupees }}</b><span>per seat per month</span></div></div>
+<div class="card"><h3>Renew or change your plan</h3><p class="muted" style="margin-top:0">Pay for a number of seats for a number of months. The time is added after your current end date.</p>
+<form method="post" action="/billing/checkout" class="row" oninput="t.value=((seats.value||0)*(months.value||0)*{{ st.price_paise }}/100).toLocaleString('en-IN',{style:'currency',currency:'INR'})">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="kind" value="renew">
+<div><label>Seats</label><input name="seats" id="seats" type="number" min="1" value="{{ [st.seats, 1] | max }}" style="width:100px"></div>
+<div><label>Months</label><input name="months" id="months" type="number" min="1" max="{{ months_max }}" value="1" style="width:100px"></div>
+<div><label>Total</label><output name="t" style="font-size:18px;font-weight:600">{{ ([st.seats, 1] | max * st.price_paise) | rupees }}</output></div><button>Pay</button></form></div>
+{% if st.valid %}<div class="card"><h3>Add seats now</h3><p class="muted" style="margin-top:0">Extra seats are charged only until your current end date ({{ st.paid_until | day }}), pro rata.</p>
+<form method="post" action="/billing/checkout" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="kind" value="add_seats"><input type="hidden" name="months" value="0">
+<div><label>Extra seats</label><input name="seats" type="number" min="1" value="1" style="width:100px"></div><button>See price and pay</button></form></div>{% endif %}
+<div class="card"><h3>Payment history</h3>{% if pays %}<table><tr><th>Date</th><th>For</th><th>Amount</th><th>Status</th><th></th></tr>
+{% for p in pays %}<tr><td>{{ p.created_at | day }}</td><td>{{ "Renew: " ~ p.seats ~ " seats, " ~ p.months ~ " months" if p.kind == "renew" else "Add " ~ p.seats ~ " seats" }}</td><td>{{ p.amount_paise | rupees }}</td>
+<td>{{ p.status }}</td><td>{% if p.status == "paid" %}<a href="/billing/{{ p.id }}/receipt">Receipt</a>{% endif %}</td></tr>{% endfor %}</table>{% else %}<p class="muted">No payments yet.</p>{% endif %}</div>{% endblock %}

@@ -1,5 +1,15 @@
 # Runbook
 
+## Roles and the company flow
+1. **ClearNAI staff (super admin)** open **Organisations**, create the company and its owner (name, email, seats, free days, features) and hand over the temporary password shown once.
+2. **The owner** signs in, chooses a password, optionally turns on two-step sign-in, adds admins on **Team**, people on **People**, and pays on **Billing**.
+3. **Admins** add people and issue licenses. Seats = licenses active at once; revoking or switching a person off frees the seat.
+4. A license can never run longer than the paid period. When the period ends, new licenses are blocked until the owner renews.
+
+## Payments
+Set `LICSRV_PAYMENT_PROVIDER=razorpay`, `LICSRV_RAZORPAY_KEY_ID`, `LICSRV_RAZORPAY_KEY_SECRET`, `LICSRV_RAZORPAY_WEBHOOK_SECRET`, `LICSRV_SEAT_PRICE_PAISE`.
+In the Razorpay dashboard add a webhook to `https://YOUR-DOMAIN/v1/webhooks/razorpay` for `payment.captured` and `order.paid`. `mock` is for local testing only.
+
 ## Everyday: issue a license
 1. The user opens ClearNAI > Profile, presses **Copy** next to "This PC's Device Code", and sends it to you.
 2. Sign in to the portal > **Issue license**: choose the user, paste the code, tick the features, choose the days.

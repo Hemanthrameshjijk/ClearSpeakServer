@@ -30,7 +30,7 @@ with SessionLocal() as db:
         db.add(org)
         db.flush()
     secret = security.new_totp_secret()
-    db.add(AdminUser(email=email, org_id=org.id if org else None, password_hash=security.hash_password(pw), totp_secret=secret))
+    db.add(AdminUser(email=email, org_id=org.id if org else None, role="owner" if org else "admin", password_hash=security.hash_password(pw), totp_secret=secret))
     db.commit()
 print(f"Admin {email} created ({'org admin of ' + org_name if org_name else 'super admin'}).")
 print(f"TOTP secret (shown once): {secret}")

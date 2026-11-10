@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Team - ClearNAI{% endblock %}{% block body %}
+{% if msg %}<div class="note ok">{{ msg }}</div>{% endif %}{% if error %}<div class="note bad">{{ error }}</div>{% endif %}
+<div class="card"><h3>Add an admin</h3><p class="muted" style="margin-top:0">Admins can add people and issue licenses for {{ org.name }}. Only the owner can manage billing and the team.</p>
+<form method="post" action="/team" class="row"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="org_id" value="{{ org.id }}">
+<div><label>Name</label><input name="name" required></div><div><label>Email</label><input name="email" type="email" required></div><button>Add admin</button></form></div>
+<div class="card"><h3>People who can sign in</h3><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr>
+{% for a in team %}<tr><td>{{ a.name }}</td><td>{{ a.email }}</td><td>{{ a.role }}</td><td>{{ "active" if a.active else "off" }}{{ " (temporary password)" if a.must_change_password }}</td><td>
+{% if a.id != admin.id %}<form class="inline" method="post" action="/team/{{ a.id }}/reset" onsubmit="return confirm('Make a new temporary password?')"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="alt">Reset password</button></form>
+{% if a.role != "owner" %}<form class="inline" method="post" action="/team/{{ a.id }}/toggle"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="alt">{{ "Switch off" if a.active else "Switch on" }}</button></form>{% endif %}{% endif %}</td></tr>{% endfor %}</table></div>{% endblock %}
