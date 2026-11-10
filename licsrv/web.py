@@ -330,6 +330,65 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
         finally:
             db.close()
 
+    # ---- ClearNAI staff (super admins) -----------------------------------------------------------------
+    @app.get("/staff", response_class=HTMLResponse)
+    def staff_page(request: Request, msg: str = "", error: str = ""):
+        s = need(request)
+        if not s:
+            return login_redirect()
+        if (r := gate(s)) is not None:
+            return r
+        only_super(s)
+        rows = s[0].scalars(select(AdminUser).where(AdminUser.org_id.is_(None)).order_by(AdminUser.email)).all()
+        return page(request, "staff.html", {"_s": s, "staff": rows, "msg": msg, "error": error})
+
+    @app.post("/staff", response_class=HTMLResponse)
+    def staff_add(request: Request, csrf: str = Form(""), name: str = Form(...), email: str = Form(...)):
+        s = need(request, csrf)
+        if not s:
+            return login_redirect()
+        only_super(s)
+        db, admin, _ = s
+        try:
+            a, temp = service.create_staff(db, name, email)
+        except HTTPException as e:
+            db.close()
+            return go("/staff", error=str(e.detail))
+        audit(db, request, admin, "staff_create", "admin", a.id, email=a.email)
+        return page(request, "credentials.html", {"_s": s, "who": a, "org": None, "temp": temp, "back": "/staff", "login_url": settings.public_url + "/login"})
+
+    @app.post("/staff/{admin_id}/toggle")
+    def staff_toggle(admin_id: str, request: Request, csrf: str = Form("")):
+        s = need(request, csrf)
+        if not s:
+            return login_redirect()
+        only_super(s)
+        db, admin, _ = s
+        try:
+            t = db.get(AdminUser, admin_id)
+            if not t or t.org_id is not None or t.id == admin.id:
+                return go("/staff", error="You cannot switch yourself off.")
+            t.active = not t.active
+            db.commit()
+            audit(db, request, admin, "staff_toggle", "admin", t.id, active=t.active)
+            return go("/staff", "Updated.")
+        finally:
+            db.close()
+
+    @app.post("/staff/{admin_id}/reset", response_class=HTMLResponse)
+    def staff_reset(admin_id: str, request: Request, csrf: str = Form("")):
+        s = need(request, csrf)
+        if not s:
+            return login_redirect()
+        only_super(s)
+        db, admin, _ = s
+        t = db.get(AdminUser, admin_id)
+        if not t or t.org_id is not None or t.id == admin.id:
+            return go("/staff", error="Change your own password on the Account page.")
+        temp = service.reset_password(db, t)
+        audit(db, request, admin, "staff_password_reset", "admin", t.id)
+        return page(request, "credentials.html", {"_s": s, "who": t, "org": None, "temp": temp, "back": "/staff", "login_url": settings.public_url + "/login"})
+
     # ---- team (owner / super) -----------------------------------------------------------------------------
     def team_org(s, org_id: str):
         db, admin, _ = s

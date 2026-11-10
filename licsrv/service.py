@@ -73,7 +73,7 @@ def create_org_with_owner(db: Session, name: str, owner_name: str, owner_email: 
     return org, owner, temp
 
 
-def _new_admin(db: Session, org_id: str, name: str, email: str, role: str) -> tuple[AdminUser, str]:
+def _new_admin(db: Session, org_id: str | None, name: str, email: str, role: str) -> tuple[AdminUser, str]:
     temp = new_temp_password()
     a = AdminUser(org_id=org_id, name=name.strip(), email=email, role=role, password_hash=security.hash_password(temp),
                   totp_secret=security.new_totp_secret(), totp_enabled=False, must_change_password=True)
@@ -138,3 +138,15 @@ def check_can_issue(db: Session, org: Org, features: list[str], days: int, repla
 def require_owner(admin: AdminUser) -> None:
     if admin.org_id is not None and admin.role != "owner":
         raise HTTPException(403, "Only the organisation owner can do that.")
+
+
+def create_staff(db: Session, name: str, email: str) -> tuple[AdminUser, str]:
+    """Another ClearNAI super admin (no organisation)."""
+    email = email.strip().lower()
+    if not EMAIL.match(email) or not name.strip():
+        raise HTTPException(422, "Enter a name and an email address.")
+    if db.scalar(select(AdminUser).where(AdminUser.email == email)):
+        raise HTTPException(409, "That email already has a sign-in.")
+    a, temp = _new_admin(db, None, name, email, "admin")
+    db.commit()
+    return a, temp

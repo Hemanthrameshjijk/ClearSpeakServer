@@ -292,3 +292,16 @@ def test_json_api_org_flow_and_entitlements(world):
     assert s.post("/v1/billing/orders", json={"kind": "renew", "seats": 5, "months": 1}).status_code == 403
     r = a.post("/v1/billing/orders", json={"kind": "renew", "seats": 5, "months": 999})
     assert r.status_code == 422
+
+
+def test_staff_can_add_another_super_admin(world):
+    s = staff(world)
+    r = s.post("/staff", data={"csrf": csrf_of(s, "/staff"), "name": "Second Staff", "email": "second@clearnai.example"})
+    assert r.status_code == 200 and "Super admin" in r.text
+    temp = re.search(r'id="pw">([^<]+)<', r.text).group(1)
+    c = owner_session(world, "second@clearnai.example", temp)
+    assert c.get("/orgs").status_code == 200 and c.get("/staff").status_code == 200
+    # an organisation owner cannot reach the staff page
+    email, otemp = make_org(world)
+    o = owner_session(world, email, otemp)
+    assert o.get("/staff").status_code == 403
