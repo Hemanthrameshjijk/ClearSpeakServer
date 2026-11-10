@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     session_secret: str = ""
     session_hours: int = 8
     cookie_secure: bool = True  # set false only for local http testing
+    # DEVELOPMENT ONLY: a fixed authenticator code (for example 111111). Ignored unless cookie_secure is false, so it cannot work on a real HTTPS host.
+    dev_otp: str = ""
     max_failed_logins: int = 5
     lockout_minutes: int = 15
     min_days: int = 1

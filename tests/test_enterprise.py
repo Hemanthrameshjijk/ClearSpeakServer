@@ -305,3 +305,13 @@ def test_staff_can_add_another_super_admin(world):
     email, otemp = make_org(world)
     o = owner_session(world, email, otemp)
     assert o.get("/staff").status_code == 403
+
+
+def test_dev_otp_works_only_when_set_and_not_on_secure_cookies(world, monkeypatch):
+    info = world["super"]
+    c = client(world)
+    assert c.post("/login", data={"email": info["email"], "password": PASSWORD, "totp": "111111"}).status_code == 401
+    monkeypatch.setattr(settings, "dev_otp", "111111")
+    assert c.post("/login", data={"email": info["email"], "password": PASSWORD, "totp": "111111"}).status_code == 303
+    monkeypatch.setattr(settings, "cookie_secure", True)
+    assert c.post("/login", data={"email": info["email"], "password": PASSWORD, "totp": "111111"}).status_code == 401
