@@ -1,0 +1,21 @@
+# Server + PostgreSQL. Put a TLS reverse proxy (Caddy/nginx) in front; never expose port 8000 directly.
+# Secrets come from an .env file next to this one (not committed): LICSRV_SESSION_SECRET, LICSRV_KEY_PASSPHRASE, POSTGRES_PASSWORD.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: licsrv
+      POSTGRES_USER: licsrv
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [dbdata:/var/lib/postgresql/data]
+  app:
+    build: .
+    depends_on: [db]
+    environment:
+      LICSRV_DATABASE_URL: postgresql+psycopg://licsrv:${POSTGRES_PASSWORD}@db/licsrv
+      LICSRV_SESSION_SECRET: ${LICSRV_SESSION_SECRET}
+      LICSRV_KEY_PASSPHRASE: ${LICSRV_KEY_PASSPHRASE}
+    volumes: ["./signing.key:/data/signing.key:ro"]
+    ports: ["127.0.0.1:8000:8000"]
+volumes:
+  dbdata:

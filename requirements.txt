@@ -1,0 +1,17 @@
+alembic==1.20.1
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+cryptography==50.0.2
+fastapi==0.162.2
+httpx==0.28.1
+itsdangerous==2.2.0
+Jinja2==3.1.6
+pydantic==2.14.3
+pydantic-settings==2.16.2
+pydantic_core==2.50.4
+PyOTP==2.10.0
+python-multipart==0.0.33
+SQLAlchemy==2.1.8
+starlette==1.10.0
+uvicorn==0.54.0
+psycopg[binary]>=3.2
