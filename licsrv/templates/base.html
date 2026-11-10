@@ -16,7 +16,7 @@
  textarea{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
  form.inline{display:inline} .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end} label{display:block;font-size:13px;color:var(--muted)}
 </style></head><body>
-{% if admin %}<nav><b>ClearNAI licenses</b><a href="/">Dashboard</a><a href="/users">Users</a><a href="/licenses">Licenses</a><a href="/licenses/new">Issue license</a>
+{% if admin %}<nav><b>ClearNAI licenses</b><a href="/">Dashboard</a>{% if is_super %}<a href="/orgs">Organisations</a>{% endif %}<a href="/users">Users</a><a href="/licenses">Licenses</a><a href="/licenses/new">Issue license</a>
 {% if is_super %}<a href="/audit">Audit</a>{% endif %}<span class="sp"></span><span class="muted">{{ admin.email }}</span>
 <form class="inline" method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="alt">Sign out</button></form></nav>{% endif %}
 <main>{% block body %}{% endblock %}</main></body></html>

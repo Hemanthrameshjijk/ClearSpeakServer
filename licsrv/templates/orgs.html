@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block body %}
+{% if msg %}<p class="ok">{{ msg }}</p>{% endif %}
+<div class="card"><h3>Add an organisation</h3><form method="post" action="/orgs" class="row"><input type="hidden" name="csrf" value="{{ csrf }}">
+<div><label>Name</label><input name="name" required minlength="2"></div><button>Add</button></form></div>
+<div class="card"><h3>Organisations</h3><table><tr><th>Name</th><th>Users</th></tr>
+{% for o in orgs %}<tr><td>{{ o.name }}</td><td>{{ counts[o.id] }}</td></tr>{% endfor %}</table></div>{% endblock %}

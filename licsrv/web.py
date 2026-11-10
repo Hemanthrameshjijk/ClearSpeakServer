@@ -118,6 +118,42 @@ def register(app: FastAPI, issue, supersede) -> None:
         names = {u.id: u.name for u in db.scalars(select(User))}
         return page(request, "dashboard.html", {"_s": s, "active": active, "users": users, "soon": soon, "names": names})
 
+    # ---- organisations (super admin) ----------------------------------------------------------------------
+    @app.get("/orgs", response_class=HTMLResponse)
+    def orgs_page(request: Request, msg: str = ""):
+        s = need(request)
+        if not s:
+            return login_redirect()
+        db, admin, _ = s
+        if admin.org_id is not None:
+            db.close()
+            raise HTTPException(403, "Only a super admin can manage organisations.")
+        rows = db.scalars(select(Org).order_by(Org.name)).all()
+        counts = {o.id: db.scalar(select(func.count()).select_from(User).where(User.org_id == o.id)) for o in rows}
+        return page(request, "orgs.html", {"_s": s, "orgs": rows, "counts": counts, "msg": msg})
+
+    @app.post("/orgs")
+    def orgs_create(request: Request, csrf: str = Form(""), name: str = Form(...)):
+        s = need(request, csrf)
+        if not s:
+            return login_redirect()
+        db, admin, _ = s
+        try:
+            if admin.org_id is not None:
+                raise HTTPException(403, "Only a super admin can manage organisations.")
+            clean = name.strip()
+            if len(clean) < 2:
+                return RedirectResponse("/orgs?msg=Enter+a+name+of+at+least+2+letters.", status_code=303)
+            if db.scalar(select(Org).where(Org.name == clean)):
+                return RedirectResponse("/orgs?msg=An+organisation+with+that+name+exists.", status_code=303)
+            org = Org(name=clean)
+            db.add(org)
+            db.commit()
+            audit(db, request, admin, "org_create", "org", org.id)
+            return RedirectResponse("/orgs?msg=Organisation+added.", status_code=303)
+        finally:
+            db.close()
+
     # ---- users --------------------------------------------------------------------------------------------
     @app.get("/users", response_class=HTMLResponse)
     def users_page(request: Request, msg: str = ""):

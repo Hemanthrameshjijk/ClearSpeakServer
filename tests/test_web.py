@@ -113,3 +113,19 @@ def test_dashboard_lists_licenses_expiring_soon(world):
     c.post("/licenses/new", data={"csrf": csrf, "user_id": user_id, "device_code": CODE, "days": "7", "features": ["nc"]})
     html = c.get("/").text
     assert "Soon Soon" in html and "Renew" in html
+
+
+def test_super_admin_manages_organisations_from_the_page(world):
+    c = web_login(world)
+    page = c.get("/orgs").text
+    assert "Org A" in page and "Org B" in page
+    csrf = csrf_of(c, "/orgs")
+    assert c.post("/orgs", data={"csrf": csrf, "name": "New Org <x>"}).status_code == 303
+    after = c.get("/orgs").text
+    assert "New Org &lt;x&gt;" in after
+    r = c.post("/orgs", data={"csrf": csrf, "name": "New Org <x>"})
+    assert "already" in r.headers["location"].replace("+", " ") or "exists" in r.headers["location"]
+    assert c.post("/orgs", data={"csrf": "wrong", "name": "Zed Org"}).status_code == 403
+    admin_a = web_login(world, "a")
+    assert admin_a.get("/orgs").status_code == 403
+    assert admin_a.post("/orgs", data={"csrf": csrf_of(admin_a), "name": "Sneaky"}).status_code == 403
