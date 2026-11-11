@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # Signing key: an encrypted file made by scripts/newkey.py, opened with the passphrase.
     signing_key_file: Path = Path("signing.key")
     key_passphrase: str = ""
+    # The public key the ClearNAI app trusts (hex). If set, the server refuses to start with any other signing key,
+    # so licenses the app would reject can never be issued by mistake.
+    expected_public_key: str = ""
     # Signs the admin session cookie. Must be long and random in production.
     session_secret: str = ""
     session_hours: int = 8

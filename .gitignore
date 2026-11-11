@@ -6,3 +6,6 @@ __pycache__/
 *.db
 *.key
 signing.key
+
+# old local test copies
+*.old-test-key-unused
