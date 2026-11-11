@@ -352,3 +352,13 @@ def test_changing_features_makes_a_new_license_that_replaces_the_old_one(world):
     assert "replaced" in page and "1 / 1" in page, "still one seat"
     r = c.post(f"/licenses/{old_id}/change", data={"csrf": csrf_of(c, "/licenses"), "days": "20", "features": ["nc"]})
     assert r.status_code == 303, "the replaced license cannot be changed again"
+
+
+def test_license_carries_the_persons_email_and_organisation_name(world):
+    email, temp = make_org(world)
+    c = owner_session(world, email, temp)
+    r = c.post("/licenses/new", data={"csrf": csrf_of(c, "/licenses/new"), "user_id": "", "new_name": "Eva", "new_email": "eva@acme.example",
+                                      "device_code": CODE, "days": "30", "features": ["nc"]})
+    token = re.search(r"(CLNAI1\.[A-Za-z0-9_.-]+)", r.text).group(1)
+    p = tokens.verify_token(token, world["provider"].public_key(), tokens.parse_device_code(CODE), int(datetime.now(timezone.utc).timestamp()))
+    assert (p.name, p.email, p.orgname) == ("Eva", "eva@acme.example", "Acme")

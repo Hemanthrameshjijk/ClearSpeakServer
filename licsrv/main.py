@@ -136,7 +136,9 @@ def create_app(keys: KeyProvider, create_tables: bool = False, gateway=None) -> 
             raise HTTPException(422, str(e)) from None
         now = int(time.time())
         lid = new_id()
-        payload = tokens.Payload(lid=lid, org=user.org_id, uid=user.id, name=user.name, dev=devs, feat=feats, iat=now, exp=now + days * 86400)
+        org = db.get(Org, user.org_id)
+        payload = tokens.Payload(lid=lid, org=user.org_id, uid=user.id, name=user.name, dev=devs, feat=feats, iat=now, exp=now + days * 86400,
+                                 email=user.email or "", orgname=org.name if org else "")
         token = tokens.build_token(payload, app.state.keys.sign)
         lic = License(id=lid, org_id=user.org_id, user_id=user.id, device_code=_group("".join(devs)),
                       devices=devs, features=feats, issued_at=datetime.fromtimestamp(now, timezone.utc),

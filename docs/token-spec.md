@@ -48,3 +48,9 @@ checks the signature over the received bytes first, and only then parses.
 * A patched app can skip all of this; code signing and integrity checks raise the effort, they do not remove it.
 * Revocation offline only happens at renewal; keep `exp` short (30-90 days).
 * The clock guard in the app is a deterrent: a user who rolls the clock back and deletes its marker defeats it.
+
+## Optional fields (added later, still version 1)
+* `email`: the person's email address, as entered on the server.
+* `orgname`: the organisation's name.
+
+Both are left out when empty. Verifiers must ignore fields they do not know and treat missing optional fields as empty.

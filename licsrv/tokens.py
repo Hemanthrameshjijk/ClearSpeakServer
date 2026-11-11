@@ -102,12 +102,18 @@ class Payload:
     exp: int
     min: int = 2
     v: int = 1
+    email: str = ""  # optional: shown in the app; left out of the token when empty
+    orgname: str = ""  # optional: the organisation's name, shown in the app
 
     def to_bytes(self) -> bytes:
         d = {
             "v": self.v, "lid": self.lid, "org": self.org, "uid": self.uid, "name": self.name,
             "dev": self.dev, "min": self.min, "feat": self.feat, "iat": self.iat, "exp": self.exp,
         }
+        if self.email:
+            d["email"] = self.email
+        if self.orgname:
+            d["orgname"] = self.orgname
         return json.dumps(d, separators=(",", ":"), sort_keys=True, ensure_ascii=False).encode("utf-8")
 
 
@@ -135,7 +141,8 @@ def verify_token(token: str, public_key: bytes, current_devices: list[str], now:
     d = json.loads(body)
     if d.get("v") != 1:
         raise TokenError("unsupported version")
-    p = Payload(lid=d["lid"], org=d["org"], uid=d["uid"], name=d["name"], dev=d["dev"], feat=d["feat"], iat=d["iat"], exp=d["exp"], min=d["min"])
+    p = Payload(lid=d["lid"], org=d["org"], uid=d["uid"], name=d["name"], dev=d["dev"], feat=d["feat"], iat=d["iat"], exp=d["exp"], min=d["min"],
+                email=d.get("email", ""), orgname=d.get("orgname", ""))
     if now < p.iat - 86400:
         raise TokenError("not yet valid")
     if now >= p.exp:
