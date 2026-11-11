@@ -623,24 +623,42 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
         allowed = tokens.FEATURES
         if admin.org_id:
             allowed = [f for f in tokens.FEATURES if f in (db.get(Org, admin.org_id).features or [])]
-        return page(request, "issue.html", {"_s": s, "users": users, "features": allowed, "user_id": user_id, "error": error,
+        orgs = db.scalars(scoped(select(Org), admin, Org.id).order_by(Org.name)).all()
+        return page(request, "issue.html", {"_s": s, "users": users, "orgs": orgs, "features": allowed, "user_id": user_id, "error": error,
                                             "min_days": settings.min_days, "max_days": settings.max_days})
 
     @app.post("/licenses/new", response_class=HTMLResponse)
-    def license_issue(request: Request, csrf: str = Form(""), user_id: str = Form(...), device_code: str = Form(...), days: int = Form(90),
-                      features: list[str] = Form(default=[])):
+    def license_issue(request: Request, csrf: str = Form(""), user_id: str = Form(""), device_code: str = Form(...), days: int = Form(90),
+                      features: list[str] = Form(default=[]), new_name: str = Form(""), new_email: str = Form(""), new_employee_id: str = Form(""),
+                      org_id: str = Form("")):
+        """Issues a license for an existing person, or creates the person and the license in one step (`user_id` empty)."""
         s = need(request, csrf)
         if not s:
             return login_redirect()
         db, admin, _ = s
-        user = db.get(User, user_id)
+        created = None
         try:
-            if not user:
-                raise HTTPException(404, "No such user.")
+            if user_id:
+                user = db.get(User, user_id)
+                if not user:
+                    raise HTTPException(404, "No such user.")
+            else:
+                oid = admin.org_id or org_id
+                if not oid or not db.get(Org, oid):
+                    raise HTTPException(422, "Choose an organisation.")
+                if not new_name.strip():
+                    raise HTTPException(422, "Choose a person, or enter the new person's name.")
+                security.scope_org(admin, oid)
+                user = created = User(org_id=oid, name=new_name.strip(), email=new_email.strip().lower(), employee_id=new_employee_id.strip())
+                db.add(user)
+                db.flush()
             security.scope_org(admin, user.org_id)
             lic = issue(db, request, admin, user, device_code, features, days)
+            if created is not None:
+                audit(db, request, admin, "user_create", "user", user.id, org_id=user.org_id)
             audit(db, request, admin, "license_issue", "license", lic.id, org_id=user.org_id, user_id=user.id, days=days, features=lic.features)
         except HTTPException as e:
+            db.rollback()
             db.close()
             return go("/licenses/new", error=str(e.detail), user_id=user_id)
         return page(request, "issued.html", {"_s": s, "lic": lic, "user": user})

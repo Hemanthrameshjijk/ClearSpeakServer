@@ -1,8 +1,14 @@
-{% extends "base.html" %}{% block body %}
-<div class="card"><h2>Issue a license</h2>{% if error %}<p class="bad">{{ error }}</p>{% endif %}
+{% extends "base.html" %}{% block title %}Issue license - ClearNAI{% endblock %}{% block body %}
+<div class="card" style="max-width:720px"><h2>Issue a license</h2>
+<p class="muted" style="margin-top:0">When someone installs ClearNAI it shows a <b>Device Code</b>. They send it to you. Enter it here with their details and the features they get, then send back the license. They paste it into ClearNAI to sign in.</p>
+{% if error %}<div class="note bad">{{ error }}</div>{% endif %}
 <form method="post" action="/licenses/new"><input type="hidden" name="csrf" value="{{ csrf }}">
-<p><label>User</label><select name="user_id" required>{% for u in users %}<option value="{{ u.id }}" {{ "selected" if u.id == user_id }}>{{ u.name }}</option>{% endfor %}</select></p>
-<p><label>Device Code (the user copies it from ClearNAI's Profile page)</label><input name="device_code" required style="width:100%" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></p>
+<p><label>Device Code (shown in ClearNAI on their PC)</label><input name="device_code" required style="width:100%" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" autofocus></p>
+<p><label>Person</label><select name="user_id" id="who" onchange="document.getElementById('newp').style.display=this.value?'none':'block'">
+<option value="" {{ "selected" if not user_id }}>+ New person (fill in below)</option>{% for u in users %}<option value="{{ u.id }}" {{ "selected" if u.id == user_id }}>{{ u.name }}{{ " - " ~ u.email if u.email }}</option>{% endfor %}</select></p>
+<div id="newp" class="row" style="display:{{ 'none' if user_id else 'block' }};margin-bottom:12px">
+{% if is_super %}<p><label>Organisation</label><select name="org_id">{% for o in orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></p>{% endif %}
+<div class="row"><div><label>Name</label><input name="new_name"></div><div><label>Email</label><input name="new_email" type="email"></div><div><label>Employee ID</label><input name="new_employee_id"></div></div></div>
 <p><label>Features</label>{% for f in features %}<label style="display:inline-block;margin-right:14px;color:inherit"><input type="checkbox" name="features" value="{{ f }}" checked> {{ f }}</label>{% endfor %}</p>
 <p><label>Valid for (days, {{ min_days }} to {{ max_days }})</label><input name="days" type="number" value="90" min="{{ min_days }}" max="{{ max_days }}"></p>
-<button>Issue</button></form></div>{% endblock %}
+<button>Create person and issue license</button></form></div>{% endblock %}

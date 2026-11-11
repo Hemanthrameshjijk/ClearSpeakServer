@@ -324,3 +324,14 @@ def test_login_page_shows_the_dev_code_only_in_local_mode(world, monkeypatch):
     assert "Local test mode" in c.get("/login").text
     monkeypatch.setattr(settings, "cookie_secure", True)
     assert "Local test mode" not in c.get("/login").text
+
+
+def test_one_form_creates_the_person_and_the_license(world):
+    email, temp = make_org(world, seats="2")
+    c = owner_session(world, email, temp)
+    r = c.post("/licenses/new", data={"csrf": csrf_of(c, "/licenses/new"), "user_id": "", "new_name": "Nia New", "new_email": "nia@acme.example",
+                                      "device_code": CODE, "days": "30", "features": ["nc", "accent"]})
+    assert r.status_code == 200 and "License issued for Nia New" in r.text
+    assert "Nia New" in c.get("/users").text and "1 / 2" in c.get("/licenses").text
+    r = c.post("/licenses/new", data={"csrf": csrf_of(c, "/licenses/new"), "user_id": "", "new_name": "", "device_code": CODE, "days": "30", "features": ["nc"]})
+    assert r.status_code == 303 and "error" in r.headers["location"]
