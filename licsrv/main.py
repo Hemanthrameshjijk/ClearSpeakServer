@@ -75,6 +75,11 @@ class RenewIn(BaseModel):
     days: int = 90
 
 
+class ChangeIn(BaseModel):
+    features: list[str]
+    days: int = 90
+
+
 class ReplaceIn(BaseModel):
     device_code: str
 
@@ -335,11 +340,11 @@ def create_app(keys: KeyProvider, create_tables: bool = False, gateway=None) -> 
         audit(db, request, admin, "license_download", "license", lic.id)
         return PlainTextResponse(lic.token + "\n", headers={"Content-Disposition": f'attachment; filename="clearnai-{lic.id[:8]}.lic"'})
 
-    def _supersede(db, request, admin, old: License, device_code: str, days: int, action: str) -> License:
+    def _supersede(db, request, admin, old: License, device_code: str, days: int, action: str, features: list[str] | None = None) -> License:
         if old.status != "active":
             raise HTTPException(409, f"That license is {old.status}.")
         user = db.get(User, old.user_id)
-        new = _issue(db, request, admin, user, device_code, old.features, days, replacing=old)
+        new = _issue(db, request, admin, user, device_code, features if features is not None else old.features, days, replacing=old)
         old.status, old.replaced_by = "replaced", new.id
         db.commit()
         audit(db, request, admin, action, "license", new.id, replaces=old.id, days=days)
@@ -349,6 +354,12 @@ def create_app(keys: KeyProvider, create_tables: bool = False, gateway=None) -> 
     def renew(license_id: str, body: RenewIn, request: Request, admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
         old = _get_license(db, admin, license_id)
         return _license_out(_supersede(db, request, admin, old, old.device_code, body.days, "license_renew"), with_token=True)
+
+    @app.post("/v1/licenses/{license_id}/change", status_code=201)
+    def change(license_id: str, body: ChangeIn, request: Request, admin: AdminUser = Depends(security.current_admin), db: Session = Depends(get_db)):
+        """Same PC, new features and/or days: a new license replaces the old one; the person pastes it into ClearNAI."""
+        old = _get_license(db, admin, license_id)
+        return _license_out(_supersede(db, request, admin, old, old.device_code, body.days, "license_change", body.features), with_token=True)
 
     @app.post("/v1/licenses/{license_id}/replace-device", status_code=201)
     def replace_device(license_id: str, body: ReplaceIn, request: Request, admin: AdminUser = Depends(security.current_admin),

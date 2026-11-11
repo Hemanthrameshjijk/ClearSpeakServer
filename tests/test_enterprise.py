@@ -335,3 +335,20 @@ def test_one_form_creates_the_person_and_the_license(world):
     assert "Nia New" in c.get("/users").text and "1 / 2" in c.get("/licenses").text
     r = c.post("/licenses/new", data={"csrf": csrf_of(c, "/licenses/new"), "user_id": "", "new_name": "", "device_code": CODE, "days": "30", "features": ["nc"]})
     assert r.status_code == 303 and "error" in r.headers["location"]
+
+
+def test_changing_features_makes_a_new_license_that_replaces_the_old_one(world):
+    email, temp = make_org(world, seats="1")
+    c = owner_session(world, email, temp)
+    (uid,) = add_person(c, "Pat")
+    issue(c, uid, features=("nc", "accent"))
+    old_id = re.search(r"/licenses/([0-9a-f-]{36})/change", c.get("/licenses").text).group(1)
+    r = c.post(f"/licenses/{old_id}/change", data={"csrf": csrf_of(c, "/licenses"), "days": "20", "features": ["nc"]})
+    assert r.status_code == 200 and "License changed" in r.text
+    token = re.search(r"(CLNAI1\.[A-Za-z0-9_.-]+)", r.text).group(1)
+    p = tokens.verify_token(token, world["provider"].public_key(), tokens.parse_device_code(CODE), int(datetime.now(timezone.utc).timestamp()))
+    assert p.feat == ["nc"], "the accent feature was taken away"
+    page = c.get("/licenses").text
+    assert "replaced" in page and "1 / 1" in page, "still one seat"
+    r = c.post(f"/licenses/{old_id}/change", data={"csrf": csrf_of(c, "/licenses"), "days": "20", "features": ["nc"]})
+    assert r.status_code == 303, "the replaced license cannot be changed again"

@@ -609,7 +609,10 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
             q = q.where(License.status == status)
         rows = db.scalars(q.order_by(License.expires_at)).all()
         names = {u.id: u.name for u in db.scalars(scoped(select(User), admin, User.org_id))}
-        return page(request, "licenses.html", {"_s": s, "licenses": rows, "names": names, "status": status, "msg": msg})
+        allowed = tokens.FEATURES
+        if admin.org_id:
+            allowed = [f for f in tokens.FEATURES if f in (db.get(Org, admin.org_id).features or [])]
+        return page(request, "licenses.html", {"_s": s, "licenses": rows, "names": names, "status": status, "msg": msg, "features": allowed})
 
     @app.get("/licenses/new", response_class=HTMLResponse)
     def license_new(request: Request, user_id: str = "", error: str = ""):
@@ -695,6 +698,24 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
             db.close()
             return go("/licenses", str(e.detail))
         return page(request, "issued.html", {"_s": s, "lic": new, "user": db.get(User, new.user_id)})
+
+    @app.post("/licenses/{license_id}/change", response_class=HTMLResponse)
+    def license_change(license_id: str, request: Request, csrf: str = Form(""), days: int = Form(90), features: list[str] = Form(default=[])):
+        """Same PC, different features or days: makes a new license that replaces the old one."""
+        s = need(request, csrf)
+        if not s:
+            return login_redirect()
+        db, admin, _ = s
+        old = db.get(License, license_id)
+        try:
+            if not old:
+                raise HTTPException(404, "No such license.")
+            security.scope_org(admin, old.org_id)
+            new = supersede(db, request, admin, old, old.device_code, days, "license_change", sorted(set(features)))
+        except HTTPException as e:
+            db.close()
+            return go("/licenses", str(e.detail))
+        return page(request, "issued.html", {"_s": s, "lic": new, "user": db.get(User, new.user_id), "changed": True})
 
     @app.post("/licenses/{license_id}/revoke")
     def license_revoke(license_id: str, request: Request, csrf: str = Form(""), reason: str = Form("")):
