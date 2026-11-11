@@ -4,6 +4,7 @@ import os
 os.environ["LICSRV_DATABASE_URL"] = "sqlite://"
 os.environ["LICSRV_SESSION_SECRET"] = "x" * 48
 os.environ["LICSRV_COOKIE_SECURE"] = "false"
+os.environ["LICSRV_DEV_OTP"] = ""  # a local .env must not change what the tests expect
 
 from datetime import datetime, timedelta, timezone  # noqa: E402
 
