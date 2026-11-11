@@ -69,6 +69,10 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
             qs = f"msg={quote(msg)}" + ("&" + qs if qs else "")
         return RedirectResponse(path + ("?" + qs if qs else ""), status_code=303)
 
+    def dev_hint() -> str:
+        """Local testing only: show the fixed code on the sign-in page (never on a secure/production host)."""
+        return settings.dev_otp if settings.dev_otp and not settings.cookie_secure else ""
+
     def login_redirect():
         return RedirectResponse("/login", status_code=303)
 
@@ -94,7 +98,7 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
     # ---- sign in ------------------------------------------------------------------------------------------
     @app.get("/login", response_class=HTMLResponse)
     def login_form(request: Request, msg: str = ""):
-        return templates.TemplateResponse(request, "login.html", {"error": "", "msg": msg})
+        return templates.TemplateResponse(request, "login.html", {"error": "", "msg": msg, "dev_otp": dev_hint()})
 
     @app.post("/login")
     def login_submit(request: Request, email: str = Form(...), password: str = Form(...), totp: str = Form("")):
@@ -103,7 +107,7 @@ def register(app: FastAPI, issue, supersede, get_gateway) -> None:
             admin = db.scalar(select(AdminUser).where(AdminUser.email == email.strip().lower()))
 
             def fail(text="Wrong email, password or code.", code=401):
-                return templates.TemplateResponse(request, "login.html", {"error": text, "msg": ""}, status_code=code)
+                return templates.TemplateResponse(request, "login.html", {"error": text, "msg": "", "dev_otp": dev_hint()}, status_code=code)
 
             if not admin or not admin.active:
                 return fail()

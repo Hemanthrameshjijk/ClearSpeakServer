@@ -315,3 +315,12 @@ def test_dev_otp_works_only_when_set_and_not_on_secure_cookies(world, monkeypatc
     assert c.post("/login", data={"email": info["email"], "password": PASSWORD, "totp": "111111"}).status_code == 303
     monkeypatch.setattr(settings, "cookie_secure", True)
     assert c.post("/login", data={"email": info["email"], "password": PASSWORD, "totp": "111111"}).status_code == 401
+
+
+def test_login_page_shows_the_dev_code_only_in_local_mode(world, monkeypatch):
+    c = client(world)
+    assert "Local test mode" not in c.get("/login").text
+    monkeypatch.setattr(settings, "dev_otp", "111111")
+    assert "Local test mode" in c.get("/login").text
+    monkeypatch.setattr(settings, "cookie_secure", True)
+    assert "Local test mode" not in c.get("/login").text
